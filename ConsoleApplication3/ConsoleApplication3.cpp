@@ -120,7 +120,7 @@ bool convertTextToWideText(const char* from, wchar_t **to) {
 		NULL,
 		NULL);
 
-	if (GetLastError()) {
+	if (wideTextSize == NULL) {
 		success = false;
 		goto A;
 	}
@@ -134,15 +134,15 @@ bool convertTextToWideText(const char* from, wchar_t **to) {
 	}
 
 	/* */
-	MultiByteToWideChar(
+	unsigned int err = MultiByteToWideChar(
 		CP_UTF8,
-		0,
+		MB_PRECOMPOSED,
 		from,
 		-1,
 		*to,
 		wideTextSize);
 
-	if (GetLastError()) {
+	if (err == NULL) {
 		success = false;
 		goto B;
 	}
@@ -300,21 +300,20 @@ A:
 		 NULL
 	 );
 
-	 if (GetLastError()) {
+	 if (size == NULL) {
 		 success = false;
 		 goto A;
 	 }
 
 	 /* */
 	 *to = (char*)malloc(size * sizeof(char));
-
 	 if (*to == NULL) {
 		 success = false;
 		 goto A;
 	 }
 
 	 /* */
-	 WideCharToMultiByte(
+	 int err = WideCharToMultiByte(
 		 CP_UTF8,
 		 0,
 		 from,
@@ -325,7 +324,7 @@ A:
 		 NULL
 	 );
 
-	 if (GetLastError()) {
+	 if (err == NULL) {
 		 success = false;
 		 goto B;
 	 }
@@ -404,6 +403,8 @@ bool saveTextToBinary(const char *importPath, const char* from) {
 		fname,
 		ext
 	);
+
+	printf("%s %s", drive, dir);
 	
 	/* */
 	errno_t err1 = strcat_s(dir,_MAX_DIR,"\\escapedFiles");
@@ -447,14 +448,32 @@ F:
 	return success;
  }
 
-bool checkArg(char *argv[],char **path) {
+bool getFullPath(char *from[],char **to) {
 
-	if (*++argv) {
-		*path = *argv;
-		return true;
+	bool success = true;
+
+	/* */
+	if (! (*++from)) {
+		success = false;
+		goto F;
 	}
 
-	return false;
+	/* */
+	*to = (char*)calloc(_MAX_PATH, sizeof(char));
+	if (*to == NULL) {
+		success = false;
+		goto F;
+	}
+
+	/* */
+	char *err = _fullpath(*to, *from, _MAX_PATH);
+	if (*err == NULL) {
+		success = false;
+		goto F;
+	}
+
+F:
+	return success;
 }
 
 
@@ -470,15 +489,21 @@ int main(int argc, char *argv[])
 	char* escapedText = NULL;
 
 	/* */
-	if (!checkArg(argv, &path)) {
+	if (!getFullPath(argv, &path)) {
 		printf("引数がおかしい");
 		goto A;
+	}
+	else {
+		printf("引数ok");
 	}
 
 	/* */
 	if (!loadTextFromBinary(path,&importText)) {
 		printf("ファイルからテキストを読み込めない");
-		goto A;
+		goto H;
+	}
+	else {
+		printf("読み込みok");
 	}
 
 	/* */
@@ -486,11 +511,17 @@ int main(int argc, char *argv[])
 		printf("BOMがついていないからUTF-8じゃない");
 		goto B;
 	}
+	else {
+		printf("BOM ok");
+	}
 
 	/* */
 	if (!convertTextToWideText(noBOMtext, &wideNoBOMtext)) {
 		printf("M->Wが変換できなかった");
 		goto C;
+	}
+	else {
+		printf("M->W ok");
 	}
 
 	/* */
@@ -498,11 +529,17 @@ int main(int argc, char *argv[])
 		printf("エスケープに失敗した");
 		goto D;
 	}
+	else {
+		printf("エスケープ ok");
+	}
 
 	/* */
 	if (!convertWideTextToText(escapedNoBOMWideText, &escapedNoBOMText)) {
 		printf("W->Mが変換できなかった");
 		goto E;
+	}
+	else {
+		printf("W->M ok");
 	}
 
 	/* */
@@ -510,11 +547,18 @@ int main(int argc, char *argv[])
 		printf("BOMをつけるのに失敗");
 		goto F;
 	}
+	else {
+		printf("BOM付け ok");
+	}
+
 	
 	/* */
 	if (!saveTextToBinary(path,escapedText)) {
 		printf("ファイルをセーブするのに失敗");
 		goto G;
+	}
+	else {
+		printf("ファイルセーブ ok");
 	}
 
 G:
@@ -534,6 +578,9 @@ C:
 
 B:
 	free(importText);
+
+H: 
+	free(path);
 
 A:
 	return 0;
