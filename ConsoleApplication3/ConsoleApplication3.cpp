@@ -3,12 +3,12 @@
 
 #include "stdafx.h"
 
-bool loadTextFromBinary(const char* source, char **to) {
+errno_t loadTextFromBinary(const char* source, char **to) {
 
-	bool success = true;
+	errno_t success = 0;
 
 	if (source == NULL) {
-		success = false;
+		success = 1;
 		goto F;
 	}
 
@@ -17,7 +17,7 @@ bool loadTextFromBinary(const char* source, char **to) {
 	int error = stat(source, &statData);
 
 	if (error != NULL) {
-		success = false;
+		success = 2;
 		goto F;
 	}
 
@@ -26,7 +26,7 @@ bool loadTextFromBinary(const char* source, char **to) {
 	errno_t readFileError = fopen_s(&fp, source, "rb");
 
 	if (readFileError != NULL) {
-		success = false;
+		success = 3;
 		goto F;
 	}
 
@@ -34,7 +34,7 @@ bool loadTextFromBinary(const char* source, char **to) {
 	*to = (char*) calloc(statData.st_size + 1, sizeof(char));
 
 	if (*to == NULL) {
-		success = false;
+		success = 4;
 		goto A;
 	}
 
@@ -42,7 +42,7 @@ bool loadTextFromBinary(const char* source, char **to) {
 	int readSize = fread_s(*to, statData.st_size, sizeof(char), statData.st_size, fp);
 
 	if (readSize != statData.st_size) {
-		success = false;
+		success = 5;
 		goto A;
 	}
 	
@@ -52,24 +52,25 @@ F:
 	return success;
 }
 
-bool removeBOM(const char *from, char **to) {
-	bool success = true;
+errno_t removeBOM(const char *from, char **to) {
+
+	errno_t success = 0;
 
 	/* */
 	if (from == NULL) {
-		success = false;
+		success = 1;
 		goto A;
 	}
 
 	/* */
 	if (strlen(from) < 4) {
-		success = false;
+		success = 2;
 		goto A;
 	}
 
 	/* */
 	if (! ((from[0] == ((char)0xEF)) && (from[1] == (char)0xBB) && (from[2] == (char)0xBF)) ){
-		success = false;
+		success = 3;
 		goto A;
 	}
 
@@ -80,7 +81,7 @@ bool removeBOM(const char *from, char **to) {
 	*to = (char*)calloc(size - 2, sizeof(char));
 
 	if (*to == NULL) {
-		success = false;
+		success = 4;
 		goto A;
 	}
 
@@ -88,7 +89,7 @@ bool removeBOM(const char *from, char **to) {
 	errno_t err = memcpy_s(*to,size-2, from + 3, size - 3);
 
 	if (err) {
-		success = false;
+		success = 5;
 		goto B;
 	}
 
@@ -101,13 +102,13 @@ A:
 	return success;
 }
 
-bool convertTextToWideText(const char* from, wchar_t **to) {
+errno_t convertTextToWideText(const char* from, wchar_t **to) {
 
-	bool success = true;
+	errno_t success = 0;
 	
 	/* */
 	if (from == NULL) {
-		success = false;
+		success = 1;
 		goto A;
 	}
 
@@ -121,7 +122,7 @@ bool convertTextToWideText(const char* from, wchar_t **to) {
 		NULL);
 
 	if (wideTextSize == NULL) {
-		success = false;
+		success = 2;
 		goto A;
 	}
 
@@ -129,7 +130,7 @@ bool convertTextToWideText(const char* from, wchar_t **to) {
 	*to = (wchar_t*)calloc(wideTextSize, sizeof(wchar_t));
 
 	if (*to == NULL) {
-		success = false;
+		success = 3;
 		goto A;
 	}
 
@@ -143,7 +144,7 @@ bool convertTextToWideText(const char* from, wchar_t **to) {
 		wideTextSize);
 
 	if (err == NULL) {
-		success = false;
+		success = 4;
 		goto B;
 	}
 
@@ -191,13 +192,13 @@ inline wchar_t cp1252ToUCS2(byte cp) {
 
 }
 
-bool convertWideTextToEscapedWideText(const wchar_t* from, wchar_t** to) {
+errno_t convertWideTextToEscapedWideText(const wchar_t* from, wchar_t** to) {
 
-	bool success = true;
+	errno_t success = 0;
 
 	/* */
 	if (from == NULL) {
-		success = false;
+		success = 1;
 		goto A;
 	}
 
@@ -208,7 +209,7 @@ bool convertWideTextToEscapedWideText(const wchar_t* from, wchar_t** to) {
 	*to = (wchar_t*)calloc(size * 3 + 10, sizeof(wchar_t));
 
 	if (*to == NULL) {
-		success = false;
+		success = 2;
 		goto A;
 	}
 
@@ -278,13 +279,13 @@ A:
 	return success;
 }
 
- bool convertWideTextToText(const wchar_t* from, char **to ) {
+errno_t convertWideTextToText(const wchar_t* from, char **to ) {
 	 
-	 bool success = true;
+	 errno_t success = 0;
 
 	 /* */
 	 if (from == NULL) {
-		 success = false;
+		 success = 1;
 		 goto A;
 	 }
 
@@ -301,14 +302,14 @@ A:
 	 );
 
 	 if (size == NULL) {
-		 success = false;
+		 success = 2;
 		 goto A;
 	 }
 
 	 /* */
 	 *to = (char*)malloc(size * sizeof(char));
 	 if (*to == NULL) {
-		 success = false;
+		 success = 3;
 		 goto A;
 	 }
 
@@ -325,7 +326,7 @@ A:
 	 );
 
 	 if (err == NULL) {
-		 success = false;
+		 success = 4;
 		 goto B;
 	 }
 
@@ -338,13 +339,13 @@ A:
 	 return success;
 }
 
-bool attachBOM(const char* from, char ** to ) {
+errno_t attachBOM(const char* from, char ** to ) {
 
-	bool success = true;
+	errno_t success = 0;
 
 	/* */
 	if (from == NULL) {
-		success = false;
+		success = 1;
 		goto A;
 	}
 	
@@ -355,7 +356,7 @@ bool attachBOM(const char* from, char ** to ) {
 	*to = (char*)calloc(size +4, sizeof(char));
 
 	if (*to == NULL) {
-		success = false;
+		success = 2;
 		goto A;
 	}
 
@@ -368,7 +369,7 @@ bool attachBOM(const char* from, char ** to ) {
 	errno_t err = memcpy_s(*to+3, size + 4, from , size);
 
 	if (err) {
-		success = false;
+		success = 3;
 		goto B;
 	}
 
@@ -381,12 +382,12 @@ A:
 	return success;
 }
 
-bool saveTextToBinary(const char *importPath, const char* from) {
+errno_t saveTextToBinary(const char *importPath, const char* from) {
 
-	bool success = true;
+	errno_t success = 0;
 
 	if (importPath == NULL) {
-		success = false;
+		success = 1;
 		goto F;
 	}
 
@@ -403,15 +404,13 @@ bool saveTextToBinary(const char *importPath, const char* from) {
 		fname,
 		ext
 	);
-
-	printf("%s %s", drive, dir);
 	
 	/* */
-	errno_t err1 = strcat_s(dir,_MAX_DIR,"\\escapedFiles");
+	errno_t strcat_err = strcat_s(dir,_MAX_DIR,"\\escapedFiles");
 
 	/* */
-	if (err1) {
-		success = false;
+	if (strcat_err) {
+		success = 2;
 		goto F;
 	}
 
@@ -419,6 +418,7 @@ bool saveTextToBinary(const char *importPath, const char* from) {
 	char exportDir[_MAX_EXT];
 	_makepath_s(exportDir,drive,dir, NULL, NULL);
 	if (_mkdir(exportDir) == 0) {
+		success = -1;
 	}
 
 	/* */
@@ -427,18 +427,18 @@ bool saveTextToBinary(const char *importPath, const char* from) {
 
 	/* */
 	FILE *fw;
-	errno_t err2 = fopen_s(&fw, exportPath, "wb");
+	errno_t fopen_err = fopen_s(&fw, exportPath, "wb");
 
-	if (err2) {
-		success = false;
+	if (fopen_err) {
+		success = 3;
 		goto F;
 	}
 	 
 	/* */
-	int size_t = fwrite(from, sizeof(char),strlen(from), fw);
+	int file_size = fwrite(from, sizeof(char),strlen(from), fw);
 
-	if (size_t != strlen(from)) {
-		success = false;
+	if (file_size != strlen(from)) {
+		success = 4;
 		goto A;
 	}
 
@@ -448,27 +448,27 @@ F:
 	return success;
  }
 
-bool getFullPath(char *from[],char **to) {
+errno_t getFullPath(char *from[],char **to) {
 
-	bool success = true;
+	errno_t success = 0;
 
 	/* */
 	if (! (*++from)) {
-		success = false;
+		success = 1;
 		goto F;
 	}
 
 	/* */
 	*to = (char*)calloc(_MAX_PATH, sizeof(char));
 	if (*to == NULL) {
-		success = false;
+		success = 2;
 		goto F;
 	}
 
 	/* */
 	char *err = _fullpath(*to, *from, _MAX_PATH);
 	if (*err == NULL) {
-		success = false;
+		success = 3;
 		goto F;
 	}
 
@@ -479,7 +479,7 @@ F:
 
 int main(int argc, char *argv[])
 {
-
+	errno_t ans = 0;
 	char *path = NULL;
 	char *importText = NULL;
 	char *noBOMtext = NULL;
@@ -489,76 +489,84 @@ int main(int argc, char *argv[])
 	char* escapedText = NULL;
 
 	/* */
-	if (!getFullPath(argv, &path)) {
-		printf("引数がおかしい");
+	ans = getFullPath(argv, &path);
+	if (ans > 0) {
+		printf("引数異常:%d", ans);
 		goto A;
 	}
 	else {
-		printf("引数ok");
+		printf("%-10s %5s\n","引数","[OK]");
 	}
 
 	/* */
-	if (!loadTextFromBinary(path,&importText)) {
-		printf("ファイルからテキストを読み込めない");
+	ans = loadTextFromBinary(path, &importText);
+	if (ans > 0) {
+		printf("ファイルからテキストを読み込めない:%d",ans);
 		goto H;
 	}
 	else {
-		printf("読み込みok");
+		printf("%-10s %5s\n","読み込み","[OK]");
 	}
 
 	/* */
-	if (!removeBOM(importText,&noBOMtext)) {
-		printf("BOMがついていないからUTF-8じゃない");
+	ans = removeBOM(importText, &noBOMtext);
+	if (ans > 0) {
+		printf("BOMがついていないからUTF-8じゃない:%d", ans);
 		goto B;
 	}
 	else {
-		printf("BOM ok");
+		printf("%-10s %5s\n", "BOM", "[OK]");
 	}
 
 	/* */
-	if (!convertTextToWideText(noBOMtext, &wideNoBOMtext)) {
-		printf("M->Wが変換できなかった");
+	ans = convertTextToWideText(noBOMtext, &wideNoBOMtext);
+	if (ans > 0) {
+		printf("M->Wが変換できなかった:%d",ans);
 		goto C;
 	}
 	else {
-		printf("M->W ok");
+		printf("%-10s %5s\n", "M->W", "[OK]");
 	}
 
 	/* */
-	if (!convertWideTextToEscapedWideText(wideNoBOMtext,&escapedNoBOMWideText)) {
-		printf("エスケープに失敗した");
+	ans = convertWideTextToEscapedWideText(wideNoBOMtext, &escapedNoBOMWideText);
+	if (ans > 0) {
+		printf("エスケープに失敗した:%d",ans);
 		goto D;
 	}
 	else {
-		printf("エスケープ ok");
+		printf("%-10s %5s\n", "エスケープ", "[OK]");
 	}
 
 	/* */
-	if (!convertWideTextToText(escapedNoBOMWideText, &escapedNoBOMText)) {
-		printf("W->Mが変換できなかった");
+	ans = convertWideTextToText(escapedNoBOMWideText, &escapedNoBOMText);
+	if (ans > 0) {
+		printf("W->Mが変換できなかった:%d",ans);
 		goto E;
 	}
 	else {
-		printf("W->M ok");
+		printf("%-10s %5s\n", "W->M", "[OK]");
 	}
 
 	/* */
-	if (!attachBOM(escapedNoBOMText,&escapedText)) {
-		printf("BOMをつけるのに失敗");
+	ans = attachBOM(escapedNoBOMText, &escapedText);
+	if (ans > 0) {
+		printf("BOMをつけるのに失敗:%d",ans);
 		goto F;
 	}
 	else {
-		printf("BOM付け ok");
+		printf("%-10s %5s\n", "BOM付け", "[OK]");
 	}
 
 	
 	/* */
-	if (!saveTextToBinary(path,escapedText)) {
-		printf("ファイルをセーブするのに失敗");
+	ans = saveTextToBinary(path, escapedText);
+	if (ans > 0) {
+		printf("ファイルをセーブするのに失敗:%d",ans);
 		goto G;
 	}
 	else {
-		printf("ファイルセーブ ok");
+		printf("%-10s %5s\n", "セーブ", "[OK]");
 	}
 
 G:
