@@ -115,14 +115,14 @@ errno_t convertTextToWideText(const char* from, wchar_t **to) {
 	/* */
 	unsigned int wideTextSize = MultiByteToWideChar(
 		CP_UTF8,
-		MB_PRECOMPOSED,
+		NULL,
 		from,
 		-1,
 		NULL,
 		NULL);
 
 	if (wideTextSize == NULL) {
-		success = 2;
+		success = GetLastError();
 		goto A;
 	}
 
@@ -137,7 +137,7 @@ errno_t convertTextToWideText(const char* from, wchar_t **to) {
 	/* */
 	unsigned int err = MultiByteToWideChar(
 		CP_UTF8,
-		MB_PRECOMPOSED,
+		NULL,
 		from,
 		-1,
 		*to,
