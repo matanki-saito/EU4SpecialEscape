@@ -14,5 +14,7 @@
 
 #include <direct.h>
 
+#include <regex>
+
 
 // TODO: プログラムに必要な追加ヘッダーをここで参照してください

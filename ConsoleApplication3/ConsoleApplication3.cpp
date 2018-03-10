@@ -3,7 +3,9 @@
 
 #include "stdafx.h"
 
-errno_t loadTextFromBinary(const char* source, char **to) {
+errno_t sub(const wchar_t *source, wchar_t *baseFileName);
+
+errno_t loadTextFromBinary(const wchar_t *source, char **to) {
 
 	errno_t success = 0;
 
@@ -13,8 +15,8 @@ errno_t loadTextFromBinary(const char* source, char **to) {
 	}
 
 	/* */
-	struct stat statData;
-	int error = stat(source, &statData);
+	struct _stat statData;
+	int error = _wstat(source, &statData);
 
 	if (error != NULL) {
 		success = 2;
@@ -23,7 +25,7 @@ errno_t loadTextFromBinary(const char* source, char **to) {
 
 	/* */
 	FILE *fp;
-	errno_t readFileError = fopen_s(&fp, source, "rb");
+	errno_t readFileError = _wfopen_s(&fp, source, L"rb");
 
 	if (readFileError != NULL) {
 		success = 3;
@@ -215,7 +217,7 @@ errno_t convertWideTextToEscapedWideText(const wchar_t* from, wchar_t** to) {
 
 	/* */
 	int toIndex = 0;
-	for (int fromIndex = 0; fromIndex < size; fromIndex++) {
+	for (unsigned int fromIndex = 0; fromIndex < size; fromIndex++) {
 		const wchar_t cp = from[fromIndex];
 
 		/* 上位バイト */
@@ -339,6 +341,48 @@ A:
 	 return success;
 }
 
+errno_t attachWildCard(const wchar_t* from, wchar_t ** to) {
+
+	errno_t error = 0;
+
+	/* */
+	if (from == NULL) {
+		error = 1;
+		goto A;
+	}
+
+	/* */
+	unsigned int size = wcslen(from);
+
+	/* */
+	*to = (wchar_t*)calloc(size + 3, sizeof(wchar_t));
+
+	if (*to == NULL) {
+		error = 2;
+		goto A;
+	}
+
+	/* */
+	errno_t err = wmemcpy_s(*to, size, from, size);
+	if (err) {
+		error = 3;
+		goto B;
+	}
+
+	/* */
+	(*to)[size] = L'\\';
+	(*to)[size + 1] = L'*';
+
+	/* */
+	goto A;
+
+B:
+	free(*to);
+
+A:
+	return error;
+}
+
 errno_t attachBOM(const char* from, char ** to ) {
 
 	errno_t success = 0;
@@ -354,7 +398,6 @@ errno_t attachBOM(const char* from, char ** to ) {
 
 	/* */
 	*to = (char*)calloc(size +4, sizeof(char));
-
 	if (*to == NULL) {
 		success = 2;
 		goto A;
@@ -366,13 +409,12 @@ errno_t attachBOM(const char* from, char ** to ) {
 	(*to)[2] = (char)0xBF;
 
 	/* */
-	errno_t err = memcpy_s(*to+3, size + 4, from , size);
-
-	if (err) {
+	if (memcpy_s(*to + 3, size + 4, from, size)) {
 		success = 3;
 		goto B;
 	}
 
+	/* */
 	goto A;
 
 B:
@@ -382,60 +424,234 @@ A:
 	return success;
 }
 
-errno_t saveTextToBinary(const char *importPath, const char* from) {
+/* Cpp code */
+const std::wregex FILE_NAME_PATTERN(L"^(.+)\.utf8b(\.[a-zA-Z0-9]+)$");
+inline errno_t getBaseFileName(const wchar_t *source, wchar_t **to) {
+
+	errno_t error = 0;
+	std::wcmatch match;
+
+	/* */
+	try {
+		if (!std::regex_match(source, match, FILE_NAME_PATTERN)) {
+			/* Not match */
+			*to = NULL;
+			goto A;
+		}
+
+		/* */
+		unsigned int size = wcslen(source);
+
+		/* */
+		*to = (wchar_t*)calloc(size, sizeof(wchar_t));
+		if (*to == NULL) {
+			error = 1;
+			goto A;
+		}
+
+		/* */
+		std::wstring tmp = match.str(1); /* + match.str( */
+		wcscat_s(*to, tmp.length() + 1, tmp.c_str());
+	}
+	catch (std::regex_error& e) {
+		error = 1;
+	}
+
+A:
+	return error;
+}
+
+errno_t getFullPath(wchar_t *from[],wchar_t **to) {
+
+	errno_t error = 0;
+
+	/* */
+	if (! (*++from)) {
+		error = 1;
+		goto F;
+	}
+
+	/* */
+	*to = (wchar_t*)calloc(_MAX_PATH, sizeof(wchar_t));
+	if (*to == NULL) {
+		error = 2;
+		goto F;
+	}
+
+	/* */
+	wchar_t *err = _wfullpath(*to, *from, _MAX_PATH);
+	if (*err == NULL) {
+		error = 3;
+		goto A;
+	}
+
+	/* */
+	goto F;
+
+A:
+	free(*to);
+
+F:
+	return error;
+}
+
+/* http://www14.big.or.jp/~ken1/tech/tech5.html */
+errno_t digDir(const wchar_t *source)
+{
+	errno_t success = 0;
+	wchar_t subpath[_MAX_PATH];
+	wchar_t temp[_MAX_PATH];
+	WIN32_FIND_DATA lp;
+	
+	/* */
+	errno_t err = wcscpy_s(temp, source);
+	if (err > 0) {
+		success = 1;
+		goto A;
+	}
+
+	/* */
+	HANDLE h = FindFirstFile(temp, &lp);
+	if (INVALID_HANDLE_VALUE == h) {
+		success = 2;
+		goto A;
+	}
+
+	/* delete last '*' */
+	temp[wcslen(temp) - 1] = '\0';
+
+	/* */
+	do
+	{
+		/* isDir */
+		if((lp.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) &&
+			(wcscmp(lp.cFileName, L"..") != 0) && 
+			(wcscmp(lp.cFileName, L".") != 0)
+		){
+			/* TODO:check len */
+			int len = wsprintf(subpath, L"%s%s\\*", temp, lp.cFileName);
+
+			/* */
+			errno_t err2 = digDir(subpath);
+			if (err2 > 0) {
+				success = 3;
+				goto B;
+			}
+		}
+
+		/* isFile */
+		if ((lp.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != FILE_ATTRIBUTE_DIRECTORY) {
+			/* */
+			wchar_t *baseFileName;
+			errno_t err3 = getBaseFileName(lp.cFileName, &baseFileName);
+			if (err3 > 0) {
+				success = 4;
+				goto B;
+			}
+
+			/* */
+			if (baseFileName == NULL) continue;
+
+			/* TODO:check len */
+			wchar_t fileFullPath[_MAX_PATH];
+			int len = wsprintf(fileFullPath, L"%s%s", temp, lp.cFileName);
+
+			/* */
+			errno_t errSub = sub(fileFullPath, baseFileName);
+
+			free(baseFileName);
+
+			if (errSub > 0) {
+				goto B;
+			}
+		}
+	} while (FindNextFile(h, &lp));
+
+B:
+	FindClose(h);
+
+A:
+	return success;
+}
+
+/**/
+int wmain(int argc, wchar_t *argv[], wchar_t *envp[])
+{
+	errno_t error = 0;
+	wchar_t *fullPath = NULL;
+	wchar_t *attachWildCardFullPath = NULL;
+
+	/* */
+	error = getFullPath(argv, &fullPath);
+	if (error > 0) {
+		printf("引数異常:%d", error);
+		goto A;
+	}
+
+	/* */
+	error = attachWildCard(fullPath, &attachWildCardFullPath);
+	if (error > 0) {
+		printf("ワイルドカード添付異常:%d",error);
+		goto B;
+	}
+
+	wprintf(attachWildCardFullPath);
+
+	/* */
+	error = digDir(attachWildCardFullPath);
+	if (error > 0) {
+		printf("ディレクトリ検出異常:%d", error);
+		goto C;
+	}
+
+C:
+	free(attachWildCardFullPath);
+
+B:
+	free(fullPath);
+
+A:
+	return 0;
+}
+
+errno_t saveTextToBinary(const wchar_t *source, const wchar_t *baseFileName, const char* from) {
 
 	errno_t success = 0;
 
-	if (importPath == NULL) {
+	if (source == NULL) {
 		success = 1;
 		goto F;
 	}
 
-	char drive[_MAX_DRIVE];
-	char dir[_MAX_DIR];
-	char fname[_MAX_FNAME];
-	char ext[_MAX_EXT];
+	wchar_t drive[_MAX_DRIVE];
+	wchar_t dir[_MAX_DIR];
+	wchar_t fname[_MAX_FNAME];
+	wchar_t ext[_MAX_EXT];
 
 	/* */
-	_splitpath_s(
-		importPath,
+	_wsplitpath_s(
+		source,
 		drive,
 		dir,
 		fname,
 		ext
 	);
-	
-	/* */
-	errno_t strcat_err = strcat_s(dir,_MAX_DIR,"\\escapedFiles");
 
 	/* */
-	if (strcat_err) {
-		success = 2;
-		goto F;
-	}
-
-	/* */
-	char exportDir[_MAX_EXT];
-	_makepath_s(exportDir,drive,dir, NULL, NULL);
-	if (_mkdir(exportDir) == 0) {
-		success = -1;
-	}
-
-	/* */
-	char exportPath[_MAX_EXT];
-	_makepath_s(exportPath,drive,dir,fname,ext);
+	wchar_t exportPath[_MAX_EXT];
+	_wmakepath_s(exportPath, drive, dir, baseFileName, ext);
 
 	/* */
 	FILE *fw;
-	errno_t fopen_err = fopen_s(&fw, exportPath, "wb");
+	errno_t fopen_err = _wfopen_s(&fw, exportPath, L"wb");
 
 	if (fopen_err) {
 		success = 3;
 		goto F;
 	}
-	 
+
 	/* */
-	int file_size = fwrite(from, sizeof(char),strlen(from), fw);
+	int file_size = fwrite(from, sizeof(char), strlen(from), fw);
 
 	if (file_size != strlen(from)) {
 		success = 4;
@@ -446,41 +662,12 @@ A:
 	fclose(fw);
 F:
 	return success;
- }
-
-errno_t getFullPath(char *from[],char **to) {
-
-	errno_t success = 0;
-
-	/* */
-	if (! (*++from)) {
-		success = 1;
-		goto F;
-	}
-
-	/* */
-	*to = (char*)calloc(_MAX_PATH, sizeof(char));
-	if (*to == NULL) {
-		success = 2;
-		goto F;
-	}
-
-	/* */
-	char *err = _fullpath(*to, *from, _MAX_PATH);
-	if (*err == NULL) {
-		success = 3;
-		goto F;
-	}
-
-F:
-	return success;
 }
 
-
-int main(int argc, char *argv[])
-{
+/* */
+errno_t sub(const wchar_t *source, wchar_t *baseFileName){
 	errno_t ans = 0;
-	char *path = NULL;
+	
 	char *importText = NULL;
 	char *noBOMtext = NULL;
 	wchar_t *wideNoBOMtext = NULL;
@@ -489,23 +676,10 @@ int main(int argc, char *argv[])
 	char* escapedText = NULL;
 
 	/* */
-	ans = getFullPath(argv, &path);
-	if (ans > 0) {
-		printf("引数異常:%d", ans);
-		goto A;
-	}
-	else {
-		printf("%-10s %5s\n","引数","[OK]");
-	}
-
-	/* */
-	ans = loadTextFromBinary(path, &importText);
+	ans = loadTextFromBinary(source, &importText);
 	if (ans > 0) {
 		printf("ファイルからテキストを読み込めない:%d",ans);
-		goto H;
-	}
-	else {
-		printf("%-10s %5s\n","読み込み","[OK]");
+		goto A;
 	}
 
 	/* */
@@ -514,18 +688,12 @@ int main(int argc, char *argv[])
 		printf("BOMがついていないからUTF-8じゃない:%d", ans);
 		goto B;
 	}
-	else {
-		printf("%-10s %5s\n", "BOM", "[OK]");
-	}
 
 	/* */
 	ans = convertTextToWideText(noBOMtext, &wideNoBOMtext);
 	if (ans > 0) {
 		printf("M->Wが変換できなかった:%d",ans);
 		goto C;
-	}
-	else {
-		printf("%-10s %5s\n", "M->W", "[OK]");
 	}
 
 	/* */
@@ -534,18 +702,12 @@ int main(int argc, char *argv[])
 		printf("エスケープに失敗した:%d",ans);
 		goto D;
 	}
-	else {
-		printf("%-10s %5s\n", "エスケープ", "[OK]");
-	}
 
 	/* */
 	ans = convertWideTextToText(escapedNoBOMWideText, &escapedNoBOMText);
 	if (ans > 0) {
 		printf("W->Mが変換できなかった:%d",ans);
 		goto E;
-	}
-	else {
-		printf("%-10s %5s\n", "W->M", "[OK]");
 	}
 
 	/* */
@@ -554,19 +716,13 @@ int main(int argc, char *argv[])
 		printf("BOMをつけるのに失敗:%d",ans);
 		goto F;
 	}
-	else {
-		printf("%-10s %5s\n", "BOM付け", "[OK]");
-	}
 
 	
 	/* */
-	ans = saveTextToBinary(path, escapedText);
+	ans = saveTextToBinary(source, baseFileName, escapedText);
 	if (ans > 0) {
-		printf("ファイルをセーブするのに失敗:%d",ans);
+		printf("ファイルをセーブするのに失敗:%d", ans);
 		goto G;
-	}
-	else {
-		printf("%-10s %5s\n", "セーブ", "[OK]");
 	}
 
 G:
@@ -587,12 +743,8 @@ C:
 B:
 	free(importText);
 
-H: 
-	free(path);
-
 A:
-	return 0;
-
+	return ans;
 }
 
 
