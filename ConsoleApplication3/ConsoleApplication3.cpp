@@ -238,7 +238,7 @@ errno_t convertWideTextToEscapedWideText(const wchar_t* from, wchar_t** to) {
 		switch (high) {
 		case 0xA4:case 0xA3:case 0xA7:case 0x24:case 0x5B:case 0x00:case 0x5C:
 		case 0x20:case 0x0D:case 0x0A:case 0x22:case 0x7B:case 0x7D:case 0x40:
-		case 0x80:case 0x7E:case 0xBD:
+		case 0x80:case 0x7E:case 0x2F:
 			escapeChr += 2;
 			break;
 		default:
@@ -249,7 +249,7 @@ errno_t convertWideTextToEscapedWideText(const wchar_t* from, wchar_t** to) {
 		switch (low) {
 		case 0xA4:case 0xA3:case 0xA7:case 0x24:case 0x5B:case 0x00:case 0x5C:
 		case 0x20:case 0x0D:case 0x0A:case 0x22:case 0x7B:case 0x7D:case 0x40:
-		case 0x80:case 0x7E:case 0xBD:
+		case 0x80:case 0x7E:case 0x2F:
 			escapeChr++;
 			break;
 		default:
@@ -258,13 +258,13 @@ errno_t convertWideTextToEscapedWideText(const wchar_t* from, wchar_t** to) {
 
 		switch (escapeChr) {
 		case 0x11:
-			low += 15;
+			low += 14;
 			break;
 		case 0x12:
 			high -= 9;
 			break;
 		case 0x13:
-			low += 15;
+			low += 14;
 			high -= 9;
 			break;
 		case 0x10:
